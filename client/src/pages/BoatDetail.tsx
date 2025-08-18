@@ -25,6 +25,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner'
 import BookingForm from '../components/booking/BookingForm'
 import ReviewsList from '../components/reviews/ReviewsList'
 import ImageGallery from '../components/ui/ImageGallery'
+import BoatMap from '../components/map/BoatMap'
 
 const BoatDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -268,9 +269,10 @@ const BoatDetail: React.FC = () => {
               {activeTab === 'location' && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Localisation</h3>
-                  <div className="bg-gray-200 rounded-lg h-64 flex items-center justify-center mb-4">
-                    <p className="text-gray-500">Carte interactive (à implémenter)</p>
-                  </div>
+                  <BoatMap 
+                    boats={[boatData]} 
+                    className="h-64 w-full rounded-lg mb-4"
+                  />
                   <p className="text-gray-600">
                     {boatData.location.name}, {boatData.location.region && `${boatData.location.region}, `}{boatData.location.country}
                   </p>

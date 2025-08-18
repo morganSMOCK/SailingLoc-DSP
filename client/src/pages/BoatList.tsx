@@ -6,6 +6,7 @@ import { Filter, Map, Grid, List, Star, MapPin, Users, Calendar } from 'lucide-r
 import { boatsAPI } from '../services/api'
 import SearchForm from '../components/search/SearchForm'
 import BoatCard from '../components/boats/BoatCard'
+import BoatMap from '../components/map/BoatMap'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
 const BoatList: React.FC = () => {
@@ -173,13 +174,16 @@ const BoatList: React.FC = () => {
 
             {viewMode === 'map' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-6">
+                <div className="space-y-4 max-h-96 overflow-y-auto">
                   {data.boats.map((boat: any) => (
                     <BoatCard key={boat.id} boat={boat} layout="compact" />
                   ))}
                 </div>
-                <div className="bg-gray-200 rounded-lg flex items-center justify-center">
-                  <p className="text-gray-500">Carte interactive (à implémenter)</p>
+                <div className="sticky top-0">
+                  <BoatMap 
+                    boats={data.boats} 
+                    className="h-96 w-full rounded-lg"
+                  />
                 </div>
               </div>
             )}
