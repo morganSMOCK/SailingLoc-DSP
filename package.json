@@ -9,6 +9,7 @@
     "client:dev": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "start": "node server/index.js",
+    "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "node server/prisma/seed.js"
