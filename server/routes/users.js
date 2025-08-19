@@ -1,359 +1,128 @@
-import express from 'express';
-import { body, validationResult } from 'express-validator';
-import { PrismaClient } from '@prisma/client';
-import { authenticateToken } from '../middleware/auth.js';
+// server/routes/users.js
+import express from "express";
+import bcrypt from "bcryptjs";
+import User from "../models/User.js";
+import { body, validationResult } from "express-validator";
+import { authenticateToken } from "../middleware/auth.js";
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-// Get user profile
-router.get('/profile', authenticateToken, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        avatar: true,
-        role: true,
-        isVerified: true,
-        createdAt: true,
-        _count: {
-          select: {
-            boats: true,
-            bookings: true,
-            reviews: true
-          }
-        }
-      }
-    });
+// Inscription (optionnel si tu veux laisser auth.js gérer register)
+// Ici juste pour montrer comment tu peux le garder
+router.post(
+  "/register",
+  [
+    body("firstName").notEmpty().withMessage("Le prénom est requis"),
+    body("lastName").notEmpty().withMessage("Le nom est requis"),
+    body("email").isEmail().withMessage("Email invalide"),
+    body("password").isLength({ min: 6 }).withMessage("Le mot de passe doit contenir au moins 6 caractères"),
+    body("role").notEmpty().withMessage("Le rôle est requis"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      const { firstName, lastName, email, password, role } = req.body;
+
+      const existingUser = await User.findOne({ email });
+      if (existingUser) return res.status(400).json({ message: "Email déjà utilisé" });
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const user = new User({ firstName, lastName, email, password: hashedPassword, role });
+      await user.save();
+
+      res.status(201).json({
+        message: "Utilisateur créé avec succès",
+        user: { id: user._id, firstName, lastName, email, role }
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Erreur serveur" });
     }
+  }
+);
+
+// Connexion (si tu veux juste utiliser auth.js, tu peux supprimer cette route)
+router.post(
+  "/login",
+  [body("email").isEmail(), body("password").notEmpty()],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+      const { email, password } = req.body;
+      const user = await User.findOne({ email });
+      if (!user) return res.status(400).json({ message: "Identifiants invalides" });
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) return res.status(400).json({ message: "Identifiants invalides" });
+
+      res.json({ message: "Connexion réussie", user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role } });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Erreur serveur" });
+    }
+  }
+);
+
+// Récupérer profil
+router.get("/profile", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) return res.status(404).json({ message: "Utilisateur non trouvé" });
 
     res.json(user);
-  } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 });
 
-// Update user profile
-router.put('/profile', authenticateToken, [
-  body('firstName').optional().trim().isLength({ min: 1 }),
-  body('lastName').optional().trim().isLength({ min: 1 }),
-  body('phone').optional().isMobilePhone(),
-  body('avatar').optional().isURL()
-], async (req, res) => {
+// Mettre à jour profil
+router.put("/profile", authenticateToken, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
     const updateData = {};
-    const allowedFields = ['firstName', 'lastName', 'phone', 'avatar'];
-    
+    const allowedFields = ["firstName", "lastName", "avatar", "phone"];
     allowedFields.forEach(field => {
-      if (req.body[field] !== undefined) {
-        updateData[field] = req.body[field];
-      }
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
     });
 
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
-      data: updateData,
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        avatar: true,
-        role: true,
-        isVerified: true
-      }
-    });
-
+    const user = await User.findByIdAndUpdate(req.user.id, updateData, { new: true }).select("-password");
     res.json(user);
-  } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 });
 
-// Get user favorites
-router.get('/favorites', authenticateToken, async (req, res) => {
+// Ajouter un favori
+router.post("/favorites/:boatId", authenticateToken, async (req, res) => {
   try {
-    const favorites = await prisma.favorite.findMany({
-      where: { userId: req.user.id },
-      include: {
-        boat: {
-          include: {
-            location: true,
-            owner: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                avatar: true
-              }
-            },
-            reviews: {
-              select: { rating: true }
-            },
-            _count: {
-              select: { reviews: true }
-            }
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // Calculate average ratings
-    const favoritesWithRatings = favorites.map(favorite => {
-      const avgRating = favorite.boat.reviews.length > 0
-        ? favorite.boat.reviews.reduce((sum, review) => sum + review.rating, 0) / favorite.boat.reviews.length
-        : 0;
-      
-      const { reviews, ...boatData } = favorite.boat;
-      return {
-        ...favorite,
-        boat: {
-          ...boatData,
-          avgRating: Math.round(avgRating * 10) / 10,
-          reviewCount: favorite.boat._count.reviews
-        }
-      };
-    });
-
-    res.json(favoritesWithRatings);
-  } catch (error) {
-    console.error('Get favorites error:', error);
-    res.status(500).json({ message: 'Server error' });
+    const user = await User.findById(req.user.id);
+    if (!user.favorites.includes(req.params.boatId)) {
+      user.favorites.push(req.params.boatId);
+      await user.save();
+    }
+    res.json(user.favorites);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 });
 
-// Add to favorites
-router.post('/favorites', authenticateToken, [
-  body('boatId').isString()
-], async (req, res) => {
+// Supprimer un favori
+router.delete("/favorites/:boatId", authenticateToken, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { boatId } = req.body;
-
-    // Check if boat exists
-    const boat = await prisma.boat.findUnique({
-      where: { id: boatId }
-    });
-
-    if (!boat) {
-      return res.status(404).json({ message: 'Boat not found' });
-    }
-
-    // Check if already in favorites
-    const existingFavorite = await prisma.favorite.findUnique({
-      where: {
-        userId_boatId: {
-          userId: req.user.id,
-          boatId
-        }
-      }
-    });
-
-    if (existingFavorite) {
-      return res.status(400).json({ message: 'Boat already in favorites' });
-    }
-
-    const favorite = await prisma.favorite.create({
-      data: {
-        userId: req.user.id,
-        boatId
-      },
-      include: {
-        boat: {
-          include: {
-            location: true,
-            owner: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                avatar: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    res.status(201).json(favorite);
-  } catch (error) {
-    console.error('Add favorite error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Remove from favorites
-router.delete('/favorites/:boatId', authenticateToken, async (req, res) => {
-  try {
-    const { boatId } = req.params;
-
-    const favorite = await prisma.favorite.findUnique({
-      where: {
-        userId_boatId: {
-          userId: req.user.id,
-          boatId
-        }
-      }
-    });
-
-    if (!favorite) {
-      return res.status(404).json({ message: 'Favorite not found' });
-    }
-
-    await prisma.favorite.delete({
-      where: {
-        userId_boatId: {
-          userId: req.user.id,
-          boatId
-        }
-      }
-    });
-
-    res.json({ message: 'Removed from favorites' });
-  } catch (error) {
-    console.error('Remove favorite error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Get user messages
-router.get('/messages', authenticateToken, async (req, res) => {
-  try {
-    const messages = await prisma.message.findMany({
-      where: {
-        OR: [
-          { senderId: req.user.id },
-          { receiverId: req.user.id }
-        ]
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            avatar: true
-          }
-        },
-        receiver: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            avatar: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    res.json(messages);
-  } catch (error) {
-    console.error('Get messages error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Send message
-router.post('/messages', authenticateToken, [
-  body('receiverId').isString(),
-  body('content').trim().isLength({ min: 1, max: 1000 })
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { receiverId, content } = req.body;
-
-    // Check if receiver exists
-    const receiver = await prisma.user.findUnique({
-      where: { id: receiverId }
-    });
-
-    if (!receiver) {
-      return res.status(404).json({ message: 'Receiver not found' });
-    }
-
-    const message = await prisma.message.create({
-      data: {
-        senderId: req.user.id,
-        receiverId,
-        content
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            avatar: true
-          }
-        },
-        receiver: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            avatar: true
-          }
-        }
-      }
-    });
-
-    res.status(201).json(message);
-  } catch (error) {
-    console.error('Send message error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Mark message as read
-router.put('/messages/:id/read', authenticateToken, async (req, res) => {
-  try {
-    const message = await prisma.message.findUnique({
-      where: { id: req.params.id }
-    });
-
-    if (!message) {
-      return res.status(404).json({ message: 'Message not found' });
-    }
-
-    if (message.receiverId !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const updatedMessage = await prisma.message.update({
-      where: { id: req.params.id },
-      data: { isRead: true }
-    });
-
-    res.json(updatedMessage);
-  } catch (error) {
-    console.error('Mark message as read error:', error);
-    res.status(500).json({ message: 'Server error' });
+    const user = await User.findById(req.user.id);
+    user.favorites = user.favorites.filter(fav => fav.toString() !== req.params.boatId);
+    await user.save();
+    res.json(user.favorites);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 });
 

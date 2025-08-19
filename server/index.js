@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import connectDB from './db.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -15,6 +16,7 @@ import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payments.js';
 
 dotenv.config();
+connectDB(); // <-- ajouté ici
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,7 +27,7 @@ const PORT = process.env.PORT || 5000;
 // Security middleware
 app.use(helmet());
 
-// CORS with multiple allowed origins (comma-separated in CLIENT_URL)
+// CORS
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
   .split(',')
   .map((origin) => origin.trim());
@@ -33,7 +35,7 @@ const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // Allow non-browser or same-origin
+      if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
@@ -42,13 +44,12 @@ app.use(
 );
 
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
-});
-app.use(limiter);
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100
+}));
 
-// Body parsing middleware
+// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
