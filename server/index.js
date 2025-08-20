@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import path from 'path';
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -55,6 +56,7 @@ app.use(rateLimit({
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

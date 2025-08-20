@@ -66,9 +66,17 @@ router.post("/login", async (req, res) => {
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
-      JWT_SECRET,
+      process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
+
+        // Cookie HTTPOnly
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // true seulement en prod
+      sameSite: 'lax', // pour frontend local et prod
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+    });
 
     res.json({
       token,
