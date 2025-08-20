@@ -97,7 +97,7 @@ const PrivacyPolicy: React.FC = () => {
                 <br />
                 Email : privacy@sailingloc.fr
                 <br />
-                Adresse : 123 Rue de la Marine, 13000 Marseille, France
+                Adresse : 45 rue de la Loire, 17000 La Rochelle, France
               </p>
             </section>
           </div>
