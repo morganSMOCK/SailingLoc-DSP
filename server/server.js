@@ -1,7 +1,8 @@
-// server/server.js
+dotenv.config({path:"env"});
+import dotenv from "dotenv";
+import path from 'path';
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import connectDB from "./db.js";
 
 import authRoutes from "./routes/auth.js";
@@ -10,7 +11,6 @@ import boatsRoutes from "./routes/boats.js";
 import bookingsRoutes from "./routes/bookings.js";
 import paymentsRoutes from "./routes/payments.js";
 
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

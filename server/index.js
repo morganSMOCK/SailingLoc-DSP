@@ -1,11 +1,15 @@
+dotenv.config({path:"env"});
+import dotenv from 'dotenv';
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-import path from 'path';
 import { fileURLToPath } from 'url';
 import connectDB from './db.js';
+
+//console log test beug connect bdd
+console.log("DEBUG MONGO_URI =", process.env.MONGO_URI);
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -15,7 +19,6 @@ import userRoutes from './routes/users.js';
 import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payments.js';
 
-dotenv.config();
 connectDB(); // <-- ajouté ici
 
 const __filename = fileURLToPath(import.meta.url);
